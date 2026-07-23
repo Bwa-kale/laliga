@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MATCHDAY VAULT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pitch: #05140b;
+    --pitch-deep: #030c07;
+    --liga-red: #d81920;
+    --liga-gold: #d4af37;
+    --ucl-navy: #0a1a3f;
+    --ucl-star: #9fb4ff;
+    --win: #39ff9c;
+    --loss: #ff3b5c;
+    --push: #d4af37;
+    --line: rgba(255,255,255,0.08);
+    --ink-dim: #7b8a80;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(212,175,55,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 400px at 90% 10%, rgba(159,180,255,0.06), transparent 60%),
+      var(--pitch);
+    color:#eef2ee;
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  /* ambient pitch stripes */
+  .pitch-lines{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:repeating-linear-gradient(
+      100deg,
+      rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 60px,
+      transparent 60px, transparent 120px
+    );
+    opacity:0.6;
+  }
+  .floodlight{
+    position:fixed; top:-200px; left:50%; transform:translateX(-50%);
+    width:1200px; height:600px; z-index:0; pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(255,255,255,0.05), transparent 70%);
+    animation:flicker 6s ease-in-out infinite;
+  }
+  @keyframes flicker{
+    0%,100%{opacity:1;} 50%{opacity:0.85;}
+  }
+  .wrap{
+    position:relative; z-index:1;
+    max-width:920px; margin:0 auto; padding:36px 20px 80px;
+  }
+
+  /* HEADER */
+  header{ text-align:center; margin-bottom:28px; }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:4px;
+    color:var(--ucl-star); text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .eyebrow::before, .eyebrow::after{content:'';width:28px;height:1px;background:var(--line);}
+  h1{
+    font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(28px,6vw,44px);
+    margin:0; letter-spacing:2px;
+    background:linear-gradient(90deg,#ffb347, #ff5a4e 55%, #d81920);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subtitle{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-dim);
+    letter-spacing:1px; margin-top:8px;
+  }
+  .subtitle b{color:var(--liga-gold); font-weight:500;}
+  .subtitle i{color:var(--ucl-star); font-style:normal; font-weight:500;}
+
+  /* COMPETITION TABS */
+  .tabs{
+    display:flex; justify-content:center; gap:8px; margin:22px 0 30px;
+    flex-wrap:wrap;
+  }
+  .tab{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:1.5px;
+    padding:9px 18px; border-radius:999px; cursor:pointer; text-transform:uppercase;
+    border:1px solid var(--line); background:rgba(255,255,255,0.02); color:var(--ink-dim);
+    transition:all .25s ease;
+  }
+  .tab.active[data-comp="all"]{ background:rgba(212,175,55,0.15); border-color:var(--liga-gold); color:var(--liga-gold);}
+  .tab.active[data-comp="laliga"]{ background:rgba(216,25,32,0.18); border-color:var(--liga-red); color:#ff8a8f;}
+  .tab.active[data-comp="ucl"]{ background:rgba(10,26,63,0.6); border-color:var(--ucl-star); color:var(--ucl-star); box-shadow:0 0 12px rgba(159,180,255,0.15);}
+
+  /* SCOREBOARD CARDS */
+  .scoreboard{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:34px;
+  }
+  @media(max-width:680px){ .scoreboard{grid-template-columns:1fr;} }
+  .card{
+    background:linear-gradient(160deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01));
+    border:1px solid var(--line); border-radius:16px; padding:20px 18px;
+    backdrop-filter:blur(14px); position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  }
+  .card.goal::before{background:linear-gradient(90deg,var(--liga-gold),transparent);}
+  .card.net::before{background:linear-gradient(90deg,var(--win),transparent);}
+  .card.staked::before{background:linear-gradient(90deg,var(--ucl-star),transparent);}
+  .card-label{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:2px;
+    color:var(--ink-dim); text-transform:uppercase; margin-bottom:14px;
+  }
+
+  /* goal clock ring */
+  .clock-ring{ display:flex; align-items:center; gap:16px; }
+  .ring-svg{ width:74px; height:74px; flex-shrink:0; }
+  .ring-bg{ fill:none; stroke:rgba(255,255,255,0.08); stroke-width:6; }
+  .ring-fg{ fill:none; stroke:var(--liga-gold); stroke-width:6; stroke-linecap:round;
+    transform:rotate(-90deg); transform-origin:50% 50%; transition:stroke-dashoffset .6s ease; }
+  .ring-txt{ font-family:'Orbitron',sans-serif; font-size:15px; font-weight:700; fill:#fff; }
+  .goal-num{ font-family:'Orbitron',sans-serif; font-size:22px; font-weight:700; color:#fff; }
+  .goal-of{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-top:4px;}
+
+  .big-num{ font-family:'Orbitron',sans-serif; font-size:clamp(26px,5vw,34px); font-weight:900; line-height:1; }
+  .big-num.pos{ color:var(--win); }
+  .big-num.neg{ color:var(--loss); }
+  .sub-num{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-dim); margin-top:8px;}
+
+  /* TRANSFER STRIP */
+  .transfer-strip{
+    display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(90deg, rgba(57,255,156,0.06), rgba(159,180,255,0.06));
+    border:1px solid var(--line); border-radius:14px; padding:14px 20px; margin-bottom:28px;
+  }
+  .ts-item{ text-align:center; flex:1; }
+  .ts-label{ font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:1.5px;
+    color:var(--ink-dim); text-transform:uppercase; margin-bottom:6px; }
+  .ts-val{ font-family:'Orbitron',sans-serif; font-size:17px; font-weight:700; color:var(--win); }
+  #tsKept{ color:var(--ucl-star); }
+  #tsRate{ color:var(--liga-gold); font-size:15px; }
+  .ts-div{ width:1px; height:28px; background:var(--line); }
+  @media(max-width:560px){ .ts-label{font-size:8.5px;} .ts-val{font-size:14px;} }
+
+  /* LOG FORM */
+  .panel{
+    background:rgba(255,255,255,0.02); border:1px solid var(--line); border-radius:18px;
+    padding:24px; margin-bottom:28px;
+  }
+  .panel-title{
+    font-family:'Orbitron',sans-serif; font-size:14px; letter-spacing:2px; text-transform:uppercase;
+    color:#fff; margin:0 0 4px;
+  }
+  .panel-sub{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-bottom:20px;}
+
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  @media(max-width:560px){ .field-row{grid-template-columns:1fr;} }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--ink-dim); text-transform:uppercase;}
+  .field input, .field select{
+    background:rgba(0,0,0,0.35); border:1px solid var(--line); border-radius:9px;
+    padding:11px 12px; color:#fff; font-family:'Inter',sans-serif; font-size:14px; outline:none;
+    transition:border-color .2s ease;
+  }
+  .field input:focus, .field select:focus{ border-color:var(--liga-gold); }
+
+  .comp-select{ display:flex; gap:8px; }
+  .comp-btn{
+    flex:1; text-align:center; padding:11px 8px; border-radius:9px; cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:1px;
+    border:1px solid var(--line); background:rgba(0,0,0,0.25); color:var(--ink-dim); transition:all .2s ease;
+  }
+  .comp-btn.selected[data-c="laliga"]{ background:rgba(216,25,32,0.2); border-color:var(--liga-red); color:#ff9296; }
+  .comp-btn.selected[data-c="ucl"]{ background:rgba(10,26,63,0.7); border-color:var(--ucl-star); color:var(--ucl-star); }
+
+  .outcome-select{ display:flex; gap:8px; }
+  .out-btn{
+    flex:1; text-align:center; padding:11px 8px; border-radius:9px; cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:1.5px;
+    border:1px solid var(--line); background:rgba(0,0,0,0.25); color:var(--ink-dim); transition:all .2s ease;
+  }
+  .out-btn.selected[data-o="win"]{ background:rgba(57,255,156,0.15); border-color:var(--win); color:var(--win); }
+  .out-btn.selected[data-o="loss"]{ background:rgba(255,59,92,0.15); border-color:var(--loss); color:var(--loss); }
+  .out-btn.selected[data-o="push"]{ background:rgba(212,175,55,0.15); border-color:var(--push); color:var(--push); }
+
+  .split-preview{
+    display:flex; gap:10px; margin:4px 0 14px; padding:12px 14px;
+    background:rgba(57,255,156,0.05); border:1px dashed rgba(57,255,156,0.35);
+    border-radius:10px; transition:opacity .2s ease;
+  }
+  .split-preview.hidden{ display:none; }
+  .split-row{ flex:1; display:flex; flex-direction:column; gap:4px; }
+  .split-tag{ font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-dim); }
+  .split-tag.bank{ color:var(--win); } .split-tag.vault{ color:var(--ucl-star); }
+  .split-amt{ font-family:'Orbitron',sans-serif; font-size:17px; font-weight:700; }
+  .split-amt.bank{ color:var(--win); } .split-amt.vault{ color:var(--ucl-star); }
+
+  .log-btn{
+    width:100%; margin-top:8px; padding:14px; border:none; border-radius:10px; cursor:pointer;
+    font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:2px; text-transform:uppercase;
+    background:linear-gradient(90deg,var(--liga-gold),#f0d878); color:#111; font-weight:700;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .log-btn:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(212,175,55,0.25); }
+  .log-btn:active{ transform:translateY(0); }
+
+  /* RESULTS TICKER */
+  .ticker-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;}
+  .ticker-title{ font-family:'Orbitron',sans-serif; font-size:14px; letter-spacing:2px; text-transform:uppercase; color:#fff;}
+  .ticker-count{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim);}
+
+  .match-card{
+    display:flex; align-items:center; gap:14px;
+    background:rgba(255,255,255,0.02); border:1px solid var(--line);
+    border-left:3px solid var(--push); border-radius:10px; padding:13px 14px; margin-bottom:9px;
+  }
+  .match-card.win{ border-left-color:var(--win); }
+  .match-card.loss{ border-left-color:var(--loss); }
+  .badge{
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:1px; padding:4px 8px;
+    border-radius:6px; text-transform:uppercase; flex-shrink:0;
+  }
+  .badge.laliga{ background:rgba(216,25,32,0.18); color:#ff9296; }
+  .badge.ucl{ background:rgba(10,26,63,0.7); color:var(--ucl-star); }
+  .match-info{ flex:1; min-width:0; }
+  .match-teams{ font-size:14px; color:#fff; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .match-meta{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); margin-top:3px;}
+  .match-nums{ text-align:right; flex-shrink:0; }
+  .match-net{ font-family:'Orbitron',sans-serif; font-size:15px; font-weight:700; }
+  .match-net.win{ color:var(--win); } .match-net.loss{ color:var(--loss); } .match-net.push{ color:var(--push); }
+  .match-stake{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-dim); margin-top:2px;}
+  .match-transfer{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--win); margin-top:3px; }
+  .del-btn{
+    background:none; border:none; color:var(--ink-dim); cursor:pointer; font-size:16px;
+    padding:4px 6px; flex-shrink:0; transition:color .2s ease;
+  }
+  .del-btn:hover{ color:var(--loss); }
+
+  .empty-state{
+    text-align:center; padding:40px 20px; color:var(--ink-dim);
+    font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .empty-state .ball{ font-size:32px; margin-bottom:10px; display:block; }
+
+  ::selection{ background:var(--liga-gold); color:#111; }
+</style>
+</head>
+<body>
+<div class="pitch-lines"></div>
+<div class="floodlight"></div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">⚽ LA LIGA · CHAMPIONS LEAGUE</div>
+    <h1>MATCHDAY VAULT</h1>
+    <div class="subtitle">Every stake, every scoreline, tracked <b>toward $500K</b> · full-time discipline over <i>90 minutes of chaos</i></div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-comp="all">All Competitions</div>
+    <div class="tab" data-comp="laliga">La Liga</div>
+    <div class="tab" data-comp="ucl">Champions League</div>
+  </div>
+
+  <div class="scoreboard">
+    <div class="card goal">
+      <div class="card-label">Goal · Full Time</div>
+      <div class="clock-ring">
+        <svg class="ring-svg" viewBox="0 0 80 80">
+          <circle class="ring-bg" cx="40" cy="40" r="34"></circle>
+          <circle id="ringFg" class="ring-fg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"></circle>
+        </svg>
+        <div>
+          <div class="goal-num" id="goalPct">0%</div>
+          <div class="goal-of" id="goalOf">$0 / $500,000</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card net">
+      <div class="card-label">Net Gain</div>
+      <div class="big-num pos" id="netNum">$0</div>
+      <div class="sub-num" id="netSub">0 matches logged</div>
+    </div>
+
+    <div class="card staked">
+      <div class="card-label">Total Staked</div>
+      <div class="big-num" id="stakedNum" style="color:var(--ucl-star)">$0</div>
+      <div class="sub-num" id="stakedSub">Gross wagered, all comps</div>
+    </div>
+  </div>
+
+  <div class="transfer-strip">
+    <div class="ts-item">
+      <div class="ts-label">↗ Sent to Market</div>
+      <div class="ts-val" id="tsSent">$0</div>
+    </div>
+    <div class="ts-div"></div>
+    <div class="ts-item">
+      <div class="ts-label">Kept in Vault</div>
+      <div class="ts-val" id="tsKept">$0</div>
+    </div>
+    <div class="ts-div"></div>
+    <div class="ts-item">
+      <div class="ts-label">Split Rate</div>
+      <div class="ts-val" id="tsRate">50%</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Log a Match</div>
+    <div class="panel-sub">Enter the stake and the net result — Matchday Vault does the rest.</div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="field">
+        <label>Competition</label>
+        <div class="comp-select">
+          <div class="comp-btn selected" data-c="laliga">La Liga</div>
+          <div class="comp-btn" data-c="ucl">UCL</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field" style="grid-column:1/-1">
+        <label>Match</label>
+        <input type="text" id="fMatch" placeholder="e.g. Real Madrid vs Barcelona">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Stake ($)</label>
+        <input type="number" id="fStake" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div class="field">
+        <label>Outcome</label>
+        <div class="outcome-select">
+          <div class="out-btn" data-o="win">Win</div>
+          <div class="out-btn" data-o="loss">Loss</div>
+          <div class="out-btn" data-o="push">Push</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field" style="grid-column:1/-1">
+        <label>Net Gain / Loss ($) — positive for gain, negative for loss</label>
+        <input type="number" id="fNet" placeholder="0.00" step="0.01">
+      </div>
+    </div>
+
+    <div id="splitPreview" class="split-preview hidden">
+      <div class="split-row">
+        <span class="split-tag bank">↗ Send to bank</span>
+        <span class="split-amt bank" id="splitBank">$0.00</span>
+      </div>
+      <div class="split-row">
+        <span class="split-tag vault">Keep in vault</span>
+        <span class="split-amt vault" id="splitVault">$0.00</span>
+      </div>
+    </div>
+
+    <button class="log-btn" id="logBtn">Log Result</button>
+  </div>
+
+  <div>
+    <div class="ticker-head">
+      <div class="ticker-title">Results Ticker</div>
+      <div class="ticker-count" id="listCount">0 entries</div>
+    </div>
+    <div id="matchList"></div>
+  </div>
+</div>
+
+<script>
+const GOAL = 500000;
+let bets = [];
+let activeFilter = 'all';
+let selectedComp = 'laliga';
+let selectedOutcome = null;
+
+const $ = id => document.getElementById(id);
+
+async function loadBets(){
+  try{
+    const res = await window.storage.get('matchday_bets', false);
+    bets = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){ bets = []; }
+  render();
+}
+
+async function saveBets(){
+  try{
+    await window.storage.set('matchday_bets', JSON.stringify(bets), false);
+  }catch(e){ console.error('Storage error', e); }
+}
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    activeFilter = t.dataset.comp;
+    render();
+  });
+});
+
+document.querySelectorAll('.comp-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.comp-btn').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    selectedComp = b.dataset.c;
+  });
+});
+
+document.querySelectorAll('.out-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.out-btn').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    selectedOutcome = b.dataset.o;
+    const stake = parseFloat($('fStake').value) || 0;
+    if(selectedOutcome === 'loss'){ $('fNet').value = stake ? (-stake).toFixed(2) : ''; }
+    else if(selectedOutcome === 'push'){ $('fNet').value = '0.00'; }
+    else if(selectedOutcome === 'win'){ $('fNet').value = ''; $('fNet').focus(); }
+  });
+});
+
+function updateSplitPreview(){
+  const net = parseFloat($('fNet').value);
+  const preview = $('splitPreview');
+  if(isNaN(net) || net <= 0){
+    preview.classList.add('hidden');
+    return;
+  }
+  const bank = net * 0.5;
+  const vault = net - bank;
+  $('splitBank').textContent = '$' + bank.toFixed(2);
+  $('splitVault').textContent = '$' + vault.toFixed(2);
+  preview.classList.remove('hidden');
+}
+$('fNet').addEventListener('input', updateSplitPreview);
+
+$('logBtn').addEventListener('click', async ()=>{
+  const date = $('fDate').value || new Date().toISOString().slice(0,10);
+  const match = $('fMatch').value.trim();
+  const stake = parseFloat($('fStake').value);
+  const net = parseFloat($('fNet').value);
+
+  if(!match){ flashInvalid('fMatch'); return; }
+  if(isNaN(stake) || stake < 0){ flashInvalid('fStake'); return; }
+  if(isNaN(net)){ flashInvalid('fNet'); return; }
+  if(!selectedOutcome){
+    selectedOutcome = net > 0 ? 'win' : net < 0 ? 'loss' : 'push';
+  }
+
+  const transfer = net > 0 ? net * 0.5 : 0;
+
+  bets.unshift({
+    id: Date.now(),
+    date, comp: selectedComp, match, stake, net, outcome: selectedOutcome, transfer
+  });
+
+  $('fMatch').value = '';
+  $('fStake').value = '';
+  $('fNet').value = '';
+  document.querySelectorAll('.out-btn').forEach(x=>x.classList.remove('selected'));
+  selectedOutcome = null;
+  updateSplitPreview();
+
+  await saveBets();
+  render();
+});
+
+function flashInvalid(id){
+  const el = $(id);
+  el.style.borderColor = 'var(--loss)';
+  setTimeout(()=>{ el.style.borderColor = ''; }, 900);
+}
+
+async function deleteBet(id){
+  bets = bets.filter(b=>b.id !== id);
+  await saveBets();
+  render();
+}
+
+function fmtMoney(n){
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
+function render(){
+  const filtered = activeFilter === 'all' ? bets : bets.filter(b=>b.comp === activeFilter);
+
+  // totals always reflect ALL bets for the top scoreboard (overall bankroll goal)
+  const netTotal = bets.reduce((s,b)=>s+b.net, 0);
+  const stakedTotal = bets.reduce((s,b)=>s+b.stake, 0);
+
+  const pct = Math.max(0, Math.min(100, (netTotal / GOAL) * 100));
+  const circumference = 213.6;
+  const offset = circumference - (circumference * pct / 100);
+  $('ringFg').style.strokeDashoffset = offset;
+  $('ringFg').style.stroke = netTotal < 0 ? 'var(--loss)' : 'var(--liga-gold)';
+  $('goalPct').textContent = pct.toFixed(1) + '%';
+  $('goalOf').textContent = fmtMoney(netTotal) + ' / $500,000';
+
+  const netEl = $('netNum');
+  netEl.textContent = fmtMoney(netTotal);
+  netEl.className = 'big-num ' + (netTotal >= 0 ? 'pos' : 'neg');
+  $('netSub').textContent = bets.length + ' match' + (bets.length===1?'':'es') + ' logged';
+
+  $('stakedNum').textContent = fmtMoney(stakedTotal);
+  $('stakedSub').textContent = 'Gross wagered, all comps';
+
+  const totalGains = bets.reduce((s,b)=> s + (b.net > 0 ? b.net : 0), 0);
+  const sentTotal = bets.reduce((s,b)=> s + (b.transfer || 0), 0);
+  $('tsSent').textContent = fmtMoney(sentTotal);
+  $('tsKept').textContent = fmtMoney(totalGains - sentTotal);
+
+  $('listCount').textContent = filtered.length + ' entr' + (filtered.length===1?'y':'ies');
+
+  const list = $('matchList');
+  if(filtered.length === 0){
+    list.innerHTML = '<div class="empty-state"><span class="ball">⚽</span>No matches logged yet. Kick off above.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(b=>{
+    const outcomeClass = b.net > 0 ? 'win' : b.net < 0 ? 'loss' : 'push';
+    const compLabel = b.comp === 'laliga' ? 'La Liga' : 'UCL';
+    return `
+      <div class="match-card ${outcomeClass}">
+        <span class="badge ${b.comp}">${compLabel}</span>
+        <div class="match-info">
+          <div class="match-teams">${escapeHtml(b.match)}</div>
+          <div class="match-meta">${b.date}</div>
+        </div>
+        <div class="match-nums">
+          <div class="match-net ${outcomeClass}">${b.net >= 0 ? '+' : ''}${fmtMoney(b.net)}</div>
+          <div class="match-stake">staked ${fmtMoney(b.stake)}</div>
+          ${b.transfer > 0 ? `<div class="match-transfer">↗ ${fmtMoney(b.transfer)} to bank</div>` : ''}
+        </div>
+        <button class="del-btn" onclick="deleteBet(${b.id})" title="Remove">✕</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+$('fDate').value = new Date().toISOString().slice(0,10);
+loadBets();
+</script>
+</body>
+</html>
