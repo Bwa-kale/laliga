@@ -196,6 +196,13 @@
   .split-amt{ font-family:'Orbitron',sans-serif; font-size:17px; font-weight:700; }
   .split-amt.bank{ color:var(--win); } .split-amt.vault{ color:var(--ucl-star); }
 
+  .save-status{
+    text-align:center; font-family:'JetBrains Mono',monospace; font-size:11px;
+    margin-top:10px; min-height:16px; color:var(--ink-dim); transition:color .2s ease;
+  }
+  .save-status.ok{ color:var(--win); }
+  .save-status.err{ color:var(--loss); }
+
   .log-btn{
     width:100%; margin-top:8px; padding:14px; border:none; border-radius:10px; cursor:pointer;
     font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:2px; text-transform:uppercase;
@@ -367,6 +374,7 @@
     </div>
 
     <button class="log-btn" id="logBtn">Log Result</button>
+    <div id="saveStatus" class="save-status"></div>
   </div>
 
   <div>
@@ -389,16 +397,55 @@ const $ = id => document.getElementById(id);
 
 async function loadBets(){
   try{
+    if(!window.storage || typeof window.storage.get !== 'function'){
+      throw new Error('window.storage API not available in this environment');
+    }
     const res = await window.storage.get('matchday_bets', false);
     bets = res && res.value ? JSON.parse(res.value) : [];
-  }catch(e){ bets = []; }
+    setStatus('Loaded ' + bets.length + ' saved entr' + (bets.length===1?'y':'ies'), 'ok', 2200);
+  }catch(e){
+    bets = [];
+    if(String(e.message||e).toLowerCase().includes('not available')){
+      setStatus('Storage unavailable — entries will not persist after reload', 'err', 0);
+    }
+    console.warn('loadBets: no existing data or read failed —', e);
+  }
   render();
 }
 
 async function saveBets(){
   try{
-    await window.storage.set('matchday_bets', JSON.stringify(bets), false);
-  }catch(e){ console.error('Storage error', e); }
+    if(!window.storage || typeof window.storage.set !== 'function'){
+      throw new Error('window.storage API not available in this environment');
+    }
+    const payload = JSON.stringify(bets);
+    const result = await window.storage.set('matchday_bets', payload, false);
+    if(!result){
+      throw new Error('storage.set returned no result');
+    }
+    // verify the write actually landed
+    const check = await window.storage.get('matchday_bets', false);
+    if(!check || check.value !== payload){
+      throw new Error('verification read did not match what was saved');
+    }
+    setStatus('Saved ✓', 'ok', 1800);
+    return true;
+  }catch(e){
+    setStatus('Not saved — ' + (e.message || 'unknown storage error'), 'err', 0);
+    console.error('saveBets failed:', e);
+    return false;
+  }
+}
+
+let statusTimer = null;
+function setStatus(msg, kind, autoHideMs){
+  const el = $('saveStatus');
+  el.textContent = msg;
+  el.className = 'save-status ' + (kind || '');
+  if(statusTimer) clearTimeout(statusTimer);
+  if(autoHideMs){
+    statusTimer = setTimeout(()=>{ el.textContent=''; el.className='save-status'; }, autoHideMs);
+  }
 }
 
 document.querySelectorAll('.tab').forEach(t=>{
@@ -472,6 +519,7 @@ $('logBtn').addEventListener('click', async ()=>{
   selectedOutcome = null;
   updateSplitPreview();
 
+  setStatus('Saving…', '', 0);
   await saveBets();
   render();
 });
