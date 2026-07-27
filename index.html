@@ -397,35 +397,23 @@ const $ = id => document.getElementById(id);
 
 async function loadBets(){
   try{
-    if(!window.storage || typeof window.storage.get !== 'function'){
-      throw new Error('window.storage API not available in this environment');
-    }
-    const res = await window.storage.get('matchday_bets', false);
-    bets = res && res.value ? JSON.parse(res.value) : [];
-    setStatus('Loaded ' + bets.length + ' saved entr' + (bets.length===1?'y':'ies'), 'ok', 2200);
+    const raw = localStorage.getItem('matchday_bets');
+    bets = raw ? JSON.parse(raw) : [];
+    setStatus(bets.length ? ('Loaded ' + bets.length + ' saved entr' + (bets.length===1?'y':'ies')) : '', 'ok', 2200);
   }catch(e){
     bets = [];
-    if(String(e.message||e).toLowerCase().includes('not available')){
-      setStatus('Storage unavailable — entries will not persist after reload', 'err', 0);
-    }
-    console.warn('loadBets: no existing data or read failed —', e);
+    setStatus('Local storage unavailable in this browser', 'err', 0);
+    console.warn('loadBets failed —', e);
   }
   render();
 }
 
 async function saveBets(){
   try{
-    if(!window.storage || typeof window.storage.set !== 'function'){
-      throw new Error('window.storage API not available in this environment');
-    }
     const payload = JSON.stringify(bets);
-    const result = await window.storage.set('matchday_bets', payload, false);
-    if(!result){
-      throw new Error('storage.set returned no result');
-    }
-    // verify the write actually landed
-    const check = await window.storage.get('matchday_bets', false);
-    if(!check || check.value !== payload){
+    localStorage.setItem('matchday_bets', payload);
+    const check = localStorage.getItem('matchday_bets');
+    if(check !== payload){
       throw new Error('verification read did not match what was saved');
     }
     setStatus('Saved ✓', 'ok', 1800);
