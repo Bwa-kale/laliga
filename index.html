@@ -250,6 +250,18 @@
   }
   .empty-state .ball{ font-size:32px; margin-bottom:10px; display:block; }
 
+  /* GAIN FLOW CHART */
+  .chart-panel{ margin-bottom:10px; }
+  .chart-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; }
+  .chart-value{ font-family:'Orbitron',sans-serif; font-size:22px; font-weight:700; color:var(--win); flex-shrink:0; }
+  .chart-wrap{ position:relative; width:100%; height:180px; }
+  .chart-wrap svg{ width:100%; height:100%; display:block; }
+  .chart-empty{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--ink-dim); font-family:'JetBrains Mono',monospace; font-size:12px; gap:8px;
+  }
+  .chart-empty .ball{ font-size:26px; }
+
   ::selection{ background:var(--liga-gold); color:#111; }
 </style>
 </head>
@@ -383,6 +395,22 @@
       <div class="ticker-count" id="listCount">0 entries</div>
     </div>
     <div id="matchList"></div>
+  </div>
+
+  <div class="panel chart-panel">
+    <div class="chart-head">
+      <div>
+        <div class="panel-title">Gain Flow</div>
+        <div class="panel-sub" style="margin-bottom:0;">Cumulative net across every logged match</div>
+      </div>
+      <div class="chart-value" id="chartValue">$0</div>
+    </div>
+    <div class="chart-wrap">
+      <svg id="gainChart" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+      <div class="chart-empty" id="chartEmpty">
+        <span class="ball">⚽</span>Log at least 2 matches to see the flow
+      </div>
+    </div>
   </div>
 </div>
 
@@ -529,6 +557,85 @@ function fmtMoney(n){
   return sign + '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
 
+function buildSmoothPath(points){
+  if(points.length < 2) return '';
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for(let i=0;i<points.length-1;i++){
+    const p0 = points[i-1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i+1];
+    const p3 = points[i+2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x)/6;
+    const cp1y = p1.y + (p2.y - p0.y)/6;
+    const cp2x = p2.x - (p3.x - p1.x)/6;
+    const cp2y = p2.y - (p3.y - p1.y)/6;
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+function renderChart(){
+  const svg = $('gainChart');
+  const emptyEl = $('chartEmpty');
+
+  const sorted = [...bets].sort((a,b)=> new Date(a.date) - new Date(b.date) || a.id - b.id);
+
+  if(sorted.length < 2){
+    svg.innerHTML = '';
+    emptyEl.style.display = 'flex';
+    $('chartValue').textContent = fmtMoney(sorted.reduce((s,b)=>s+b.net,0));
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  let cum = 0;
+  const cumPoints = sorted.map(b=>{ cum += b.net; return cum; });
+  const minV = Math.min(0, ...cumPoints);
+  const maxV = Math.max(0, ...cumPoints);
+  const range = (maxV - minV) || 1;
+
+  const W = 600, H = 180, padX = 8, padY = 14;
+  const n = cumPoints.length;
+  const pts = cumPoints.map((v,i)=>({
+    x: padX + (i/(n-1)) * (W - padX*2),
+    y: H - padY - ((v - minV)/range) * (H - padY*2)
+  }));
+
+  const zeroY = H - padY - ((0 - minV)/range) * (H - padY*2);
+  const linePath = buildSmoothPath(pts);
+  const areaPath = `${linePath} L ${pts[n-1].x.toFixed(2)} ${zeroY.toFixed(2)} L ${pts[0].x.toFixed(2)} ${zeroY.toFixed(2)} Z`;
+
+  const finalVal = cumPoints[n-1];
+  const isPositive = finalVal >= 0;
+  const stroke = isPositive ? '#39ff9c' : '#ff3b5c';
+  const fillId = isPositive ? 'gainFillWin' : 'gainFillLoss';
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="gainFillWin" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#39ff9c" stop-opacity="0.32"/>
+        <stop offset="100%" stop-color="#39ff9c" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="gainFillLoss" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ff3b5c" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="#ff3b5c" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line x1="${padX}" y1="${zeroY.toFixed(2)}" x2="${W-padX}" y2="${zeroY.toFixed(2)}"
+      stroke="rgba(255,255,255,0.14)" stroke-dasharray="4 4" stroke-width="1"/>
+    <path d="${areaPath}" fill="url(#${fillId})" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${pts[n-1].x.toFixed(2)}" cy="${pts[n-1].y.toFixed(2)}" r="4.5" fill="${stroke}">
+      <animate attributeName="r" values="4.5;7.5;4.5" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0.45;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+  `;
+
+  const valEl = $('chartValue');
+  valEl.textContent = fmtMoney(finalVal);
+  valEl.style.color = isPositive ? 'var(--win)' : 'var(--loss)';
+}
+
 function render(){
   const filtered = activeFilter === 'all' ? bets : bets.filter(b=>b.comp === activeFilter);
 
@@ -584,6 +691,8 @@ function render(){
       </div>
     `;
   }).join('');
+
+  renderChart();
 }
 
 function escapeHtml(str){
